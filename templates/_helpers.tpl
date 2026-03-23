@@ -39,18 +39,23 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Pod security context for OpenShift (non-root)
+Pod security context for OpenShift (non-root, restricted policy compliant)
 */}}
 {{- define "fraud-detection.podSecurityContext" -}}
 runAsNonRoot: true
+seccompProfile:
+  type: RuntimeDefault
 {{- if .Values.securityContext.fsGroup }}
 fsGroup: {{ .Values.securityContext.fsGroup }}
 {{- end }}
 {{- end }}
 
 {{/*
-Container security context for OpenShift
+Container security context for OpenShift (restricted policy compliant)
 */}}
 {{- define "fraud-detection.containerSecurityContext" -}}
 allowPrivilegeEscalation: false
+capabilities:
+  drop:
+    - ALL
 {{- end }}
