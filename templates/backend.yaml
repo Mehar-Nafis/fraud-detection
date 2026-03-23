@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection.labels" . | nindent 8 }}
+        app: backend
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "fraud-detection.podSecurityContext" . | nindent 8 }}
+      containers:
+      - name: backend
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.backend.repository }}:{{ .Values.images.backend.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        ports:
+        - containerPort: 8000
+        env:
+        - name: KAFKA_BROKER
+          value: "kafka:29092"
+        - name: MONGODB_URL
+          value: "mongodb://mongodb:27017"
+        - name: DB_NAME
+          value: "fraud_detection"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 5
+        resources:
+          requests:
+            cpu: {{ .Values.resources.backend.requests.cpu }}
+            memory: {{ .Values.resources.backend.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.backend.limits.cpu }}
+            memory: {{ .Values.resources.backend.limits.memory }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: backend
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: 8000
+    targetPort: 8000
+  selector:
+    app: backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-service
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: customer-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: customer-service
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection.labels" . | nindent 8 }}
+        app: customer-service
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "fraud-detection.podSecurityContext" . | nindent 8 }}
+      containers:
+      - name: customer-service
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.customerService.repository }}:{{ .Values.images.customerService.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        command: ["/opt/conda/envs/morpheus/bin/uvicorn", "customer_api:app", "--host", "0.0.0.0", "--port", "5000"]
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        ports:
+        - containerPort: 5000
+        env:
+        - name: KAFKA_BROKER
+          value: "kafka:29092"
+        - name: TRITON_URL
+          value: "tritonserver:8005"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 5
+        resources:
+          requests:
+            cpu: {{ .Values.resources.customerService.requests.cpu }}
+            memory: {{ .Values.resources.customerService.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.customerService.limits.cpu }}
+            memory: {{ .Values.resources.customerService.limits.memory }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-service
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: customer-service
+spec:
+  ports:
+  - port: 5000
+    targetPort: 5000
+  selector:
+    app: customer-service

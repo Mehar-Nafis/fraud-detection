@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tritonserver
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: tritonserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tritonserver
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection.labels" . | nindent 8 }}
+        app: tritonserver
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "fraud-detection.podSecurityContext" . | nindent 8 }}
+      # Init Container: Copies models from the read-only image to the shared volume
+      initContainers:
+      - name: model-loader
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.tritonModels.repository }}:{{ .Values.images.tritonModels.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        command: ["/bin/sh", "-c", "cp -r /models/* /model_repo/"]
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        volumeMounts:
+        - name: model-repo
+          mountPath: /model_repo
+      containers:
+      - name: tritonserver
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.tritonBase.repository }}:{{ .Values.images.tritonBase.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        command: ["tritonserver", "--model-repository=/model_repo", "--exit-timeout-secs=6000", "--http-port=8005", "--grpc-port=8006", "--metrics-port=8007"]
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        ports:
+        - containerPort: 8005
+          name: http
+        - containerPort: 8006
+          name: grpc
+        - containerPort: 8007
+          name: metrics
+        readinessProbe:
+          httpGet:
+            path: /v2/health/ready
+            port: 8005
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+        livenessProbe:
+          httpGet:
+            path: /v2/health/live
+            port: 8005
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 5
+        volumeMounts:
+        - name: model-repo
+          mountPath: /model_repo
+        resources:
+          requests:
+            cpu: {{ .Values.resources.triton.requests.cpu }}
+            memory: {{ .Values.resources.triton.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.triton.limits.cpu }}
+            memory: {{ .Values.resources.triton.limits.memory }}
+            nvidia.com/gpu: {{ .Values.gpu.tritonCount }}
+      volumes:
+      - name: model-repo
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tritonserver
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: tritonserver
+spec:
+  ports:
+  - port: 8005
+    targetPort: 8005
+    name: http
+  - port: 8006
+    targetPort: 8006
+    name: grpc
+  selector:
+    app: tritonserver

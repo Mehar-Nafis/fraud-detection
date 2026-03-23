@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: mongodb
+spec:
+  selector:
+    matchLabels:
+      app: mongodb
+  serviceName: mongodb
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection.labels" . | nindent 8 }}
+        app: mongodb
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "fraud-detection.podSecurityContext" . | nindent 8 }}
+      containers:
+      - name: mongodb
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.mongodb.repository }}:{{ .Values.images.mongodb.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        ports:
+        - containerPort: 27017
+          name: mongo
+        readinessProbe:
+          tcpSocket:
+            port: 27017
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          tcpSocket:
+            port: 27017
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 5
+        resources:
+          requests:
+            cpu: {{ .Values.resources.mongodb.requests.cpu }}
+            memory: {{ .Values.resources.mongodb.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.mongodb.limits.cpu }}
+            memory: {{ .Values.resources.mongodb.limits.memory }}
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+  volumeClaimTemplates:
+  - metadata:
+      name: mongodb-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.persistence.mongodb }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: mongodb
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+  selector:
+    app: mongodb

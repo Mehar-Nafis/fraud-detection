@@ -1,0 +1,182 @@
+# Default values for fraud-detection (OpenShift).
+# This is a YAML-formatted file.
+
+# ──────────────────────────────────────────────────
+# NGC API Key — pass via:
+#   helm install ... --set ngcApiKey=nvapi-XXXX
+# ──────────────────────────────────────────────────
+ngcApiKey: ""
+
+# ──────────────────────────────────────────────────
+# Global settings
+# ──────────────────────────────────────────────────
+global:
+  imageRegistry: karthiksiddu24
+  imagePullPolicy: IfNotPresent
+  airGapped: true
+  imagePullSecrets: []
+  # - name: regcred
+
+# ──────────────────────────────────────────────────
+# OpenShift-specific settings
+# ──────────────────────────────────────────────────
+openshift:
+  enabled: true
+  route:
+    enabled: true
+
+
+
+# ──────────────────────────────────────────────────
+# Security Context defaults (OpenShift restricted)
+# ──────────────────────────────────────────────────
+securityContext:
+  runAsNonRoot: true
+  fsGroup: 1000650000
+
+
+# ──────────────────────────────────────────────────
+# Container images
+# ──────────────────────────────────────────────────
+images:
+  backend:
+    repository: cisco_fraud_detection
+    tag: backend
+  frontend:
+    repository: cisco_fraud_detection
+    tag: frontend
+  customerService:
+    repository: cisco_fraud_detection
+    tag: customer_service
+  morpheusPipeline:
+    repository: cisco_fraud_detection
+    tag: morpheus_pipeline
+  morpheusPriority:
+    repository: cisco_fraud_detection
+    tag: morpheus_priority
+  tritonBase:
+    repository: cisco_fraud_detection
+    tag: tritonserver_base
+  tritonModels:
+    repository: cisco_fraud_detection
+    tag: models
+  nimLLM:
+    repository: cisco_fraud_detection
+    tag: nim_llm
+  kafka:
+    repository: cisco_fraud_detection
+    tag: kafka
+  zookeeper:
+    repository: cisco_fraud_detection
+    tag: zookeeper
+  mongodb:
+    repository: cisco_fraud_detection
+    tag: mongodb
+  prometheus:
+    repository: cisco_fraud_detection
+    tag: prometheus
+  grafana:
+    repository: cisco_fraud_detection
+    tag: grafana
+
+# ──────────────────────────────────────────────────
+# GPU Configuration
+# ──────────────────────────────────────────────────
+gpu:
+  enabled: true
+  resourceType: nvidia.com/gpu
+  morpheusCount: 1
+  tritonCount: 1
+  nimCount: 1
+
+# ──────────────────────────────────────────────────
+# Resource Requests & Limits
+# ──────────────────────────────────────────────────
+resources:
+  backend:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  frontend:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  customerService:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  morpheusPipeline:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+  morpheusPriority:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+  triton:
+    requests:
+      cpu: "1"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "16Gi"
+  nimLLM:
+    requests:
+      cpu: "1"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "16Gi"
+  kafka:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+  zookeeper:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  mongodb:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+# ──────────────────────────────────────────────────
+# Persistence
+# ──────────────────────────────────────────────────
+persistence:
+  mongodb: 10Gi
+  kafka: 5Gi
+
+# ──────────────────────────────────────────────────
+# Services (ClusterIP for OpenShift — Routes handle external access)
+# ──────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  frontendPort: 3000
+  backendPort: 8000
+  tritonHttpPort: 8005
+  tritonGrpcPort: 8006

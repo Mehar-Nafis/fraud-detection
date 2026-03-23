@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nim-llm
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: nim-llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nim-llm
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection.labels" . | nindent 8 }}
+        app: nim-llm
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "fraud-detection.podSecurityContext" . | nindent 8 }}
+      containers:
+      - name: nim-llm
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.nimLLM.repository }}:{{ .Values.images.nimLLM.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        env:
+        {{- if .Values.ngcApiKey }}
+        - name: NGC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ngc-secret
+              key: NGC_API_KEY
+        {{- end }}
+        - name: NIM_GPU_MEMORY_UTILIZATION
+          value: "0.5"
+        ports:
+        - containerPort: 8000
+          name: http
+        readinessProbe:
+          httpGet:
+            path: /v1/health/ready
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 10
+        livenessProbe:
+          httpGet:
+            path: /v1/health/live
+            port: 8000
+          initialDelaySeconds: 120
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 10
+        resources:
+          requests:
+            cpu: {{ .Values.resources.nimLLM.requests.cpu }}
+            memory: {{ .Values.resources.nimLLM.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.nimLLM.limits.cpu }}
+            memory: {{ .Values.resources.nimLLM.limits.memory }}
+            {{- if gt (int .Values.gpu.nimCount) 0 }}
+            nvidia.com/gpu: {{ .Values.gpu.nimCount }}
+            {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nim-llm
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: nim-llm
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+  selector:
+    app: nim-llm

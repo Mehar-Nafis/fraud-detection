@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: morpheus-pipeline
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: morpheus-pipeline
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: morpheus-pipeline
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection.labels" . | nindent 8 }}
+        app: morpheus-pipeline
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "fraud-detection.podSecurityContext" . | nindent 8 }}
+      containers:
+      - name: morpheus-pipeline
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.morpheusPipeline.repository }}:{{ .Values.images.morpheusPipeline.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            python -m ensurepip && python -m pip install kafka-python numpy pandas scikit-learn==1.6.1 tritonclient[http] category_encoders && python pipeline_custom.py & sleep 10 && python producer.py --speed 5 & wait
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        env:
+        - name: KAFKA_BROKER
+          value: "kafka:29092"
+        - name: TRITON_URL
+          value: "tritonserver:8005"
+        - name: KAFKA_TOPIC_IN
+          value: "transactions_raw"
+        resources:
+          requests:
+            cpu: {{ .Values.resources.morpheusPipeline.requests.cpu }}
+            memory: {{ .Values.resources.morpheusPipeline.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.morpheusPipeline.limits.cpu }}
+            memory: {{ .Values.resources.morpheusPipeline.limits.memory }}
+            {{- if gt (int .Values.gpu.morpheusCount) 0 }}
+            nvidia.com/gpu: {{ .Values.gpu.morpheusCount }}
+            {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: morpheus-priority
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: morpheus-priority
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: morpheus-priority
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection.labels" . | nindent 8 }}
+        app: morpheus-priority
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "fraud-detection.podSecurityContext" . | nindent 8 }}
+      containers:
+      - name: morpheus-priority
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.morpheusPriority.repository }}:{{ .Values.images.morpheusPriority.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            python -m ensurepip && python -m pip install kafka-python numpy pandas scikit-learn==1.6.1 tritonclient[http] category_encoders && python pipeline_custom.py
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        env:
+        - name: KAFKA_BROKER
+          value: "kafka:29092"
+        - name: TRITON_URL
+          value: "tritonserver:8005"
+        - name: KAFKA_TOPIC_IN
+          value: "transactions_priority"
+        resources:
+          requests:
+            cpu: {{ .Values.resources.morpheusPriority.requests.cpu }}
+            memory: {{ .Values.resources.morpheusPriority.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.morpheusPriority.limits.cpu }}
+            memory: {{ .Values.resources.morpheusPriority.limits.memory }}
+            {{- if gt (int .Values.gpu.morpheusCount) 0 }}
+            nvidia.com/gpu: {{ .Values.gpu.morpheusCount }}
+            {{- end }}

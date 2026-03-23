@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection.labels" . | nindent 8 }}
+        app: frontend
+    spec:
+      {{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ .name }}
+      {{- end }}
+      {{- end }}
+      securityContext:
+        {{- include "fraud-detection.podSecurityContext" . | nindent 8 }}
+      containers:
+      - name: frontend
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.images.frontend.repository }}:{{ .Values.images.frontend.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        securityContext:
+          {{- include "fraud-detection.containerSecurityContext" . | nindent 10 }}
+        ports:
+        - containerPort: 3000
+        command: ["/bin/sh", "-c"]
+        args: ["find .next -name '*.json' -exec sed -i 's/customer_service/customer-service/g' {} + && npm start"]
+        env:
+        - name: CUSTOMER_SERVICE_URL
+          value: "http://customer-service:5000"
+        - name: NEXT_PUBLIC_CUSTOMER_SERVICE_URL
+          value: "http://customer-service:5000"
+        - name: CUSTOMER_SERVICE_HOST
+          value: "customer-service"
+        readinessProbe:
+          tcpSocket:
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          tcpSocket:
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 5
+        resources:
+          requests:
+            cpu: {{ .Values.resources.frontend.requests.cpu }}
+            memory: {{ .Values.resources.frontend.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.frontend.limits.cpu }}
+            memory: {{ .Values.resources.frontend.limits.memory }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    {{- include "fraud-detection.labels" . | nindent 4 }}
+    app: frontend
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: 3000
+    targetPort: 3000
+  selector:
+    app: frontend

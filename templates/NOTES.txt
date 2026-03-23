@@ -1,0 +1,56 @@
+🚀 Fraud Detection System deployed successfully on OpenShift!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{{- if .Values.openshift.route.enabled }}
+
+📡 Access your application via OpenShift Routes:
+
+  Frontend:
+    oc get route {{ include "fraud-detection.fullname" . }}-frontend -n {{ .Release.Namespace }} -o jsonpath='{.spec.host}'
+
+  Backend API:
+    oc get route {{ include "fraud-detection.fullname" . }}-backend -n {{ .Release.Namespace }} -o jsonpath='{.spec.host}'
+
+{{- else }}
+
+📡 Access your application via port-forward:
+
+  Frontend:
+    oc port-forward svc/frontend 3000:3000 -n {{ .Release.Namespace }}
+
+  Backend API:
+    oc port-forward svc/backend 8000:8000 -n {{ .Release.Namespace }}
+
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔑 NGC API Key:
+{{- if .Values.ngcApiKey }}
+  ✅ NGC API key secret 'ngc-secret' created.
+{{- else }}
+  ⚠️  No NGC API key provided. NIM LLM will NOT have GPU access.
+  To set it:
+    helm upgrade {{ .Release.Name }} ./fraud-detection --set ngcApiKey=nvapi-XXXX
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🛡️ Security Checklist:
+
+  ✅ Non-root containers (runAsNonRoot: true)
+  ✅ allowPrivilegeEscalation: false
+  ✅ Health probes on all services
+  ✅ Resource requests & limits defined
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📦 Install command reference:
+
+  helm install {{ .Release.Name }} ./fraud-detection \
+    --namespace {{ .Release.Namespace }} --create-namespace \
+    --set ngcApiKey=<YOUR_NGC_API_KEY>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
